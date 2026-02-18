@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+
+  <!-- Rounded background -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#14532D"/>
+
+  <!-- Graduation cap outline -->
+  <path d="M12 28L32 18L52 28L32 38L12 28Z"
+        fill="none"
+        stroke="white"
+        stroke-width="3"
+        stroke-linejoin="round"/>
+
+  <path d="M20 32V40C20 44 44 44 44 40V32"
+        fill="none"
+        stroke="white"
+        stroke-width="3"
+        stroke-linecap="round"/>
+
+</svg>

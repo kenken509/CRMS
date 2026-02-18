@@ -17,6 +17,12 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+
+            // MVP additions (future-proof)
+            $table->string('role')->default('admin');      // admin, faculty, student (future)
+            $table->boolean('is_active')->default(true);   // deactivate instead of delete
+            $table->timestamp('last_login_at')->nullable();
+            
             $table->rememberToken();
             $table->timestamps();
         });
