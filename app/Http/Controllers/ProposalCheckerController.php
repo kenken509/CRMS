@@ -10,7 +10,7 @@ class ProposalCheckerController extends Controller
         return inertia('Admin/ProposalChecker/Index', [
             'nav' => [
                 'section' => 'admin',
-                'page' => 'proposal-checkers',
+                'page' => 'checker',
             ],
             'header' => [
                 'title' => 'Proposal Checker',
