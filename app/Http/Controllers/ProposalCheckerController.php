@@ -10,7 +10,11 @@ class ProposalCheckerController extends Controller
         return inertia('Admin/ProposalChecker/Index', [
             'nav' => [
                 'section' => 'admin',
-                'page' => 'checker',
+                'page' => 'proposal-checkers',
+            ],
+            'header' => [
+                'title' => 'Proposal Checker',
+                'subtitle' => 'Check proposals for similarity and policy compliance',
             ],
         ]);
     }

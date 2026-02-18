@@ -12,6 +12,10 @@ class CapstoneController extends Controller
                 'section' => 'admin',
                 'page' => 'capstones',
             ],
+            'header' => [
+                'title' => 'Capstones',
+                'subtitle' => 'Manage submitted capstone records',
+            ],
         ]);
     }
 }

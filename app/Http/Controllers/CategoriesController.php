@@ -6,11 +6,16 @@ use Illuminate\Http\Request;
 
 class CategoriesController extends Controller
 {
-    public function index(){
+    public function index()
+    {
         return inertia('Admin/Categories/Index', [
             'nav' => [
                 'section' => 'admin',
                 'page' => 'categories',
+            ],
+            'header' => [
+                'title' => 'Categories',
+                'subtitle' => 'Manage system categories',
             ],
         ]);
     }

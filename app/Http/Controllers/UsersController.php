@@ -8,10 +8,14 @@ class UsersController extends Controller
 {
     public function index(){
         return inertia('Admin/Users/Index', [
-            'nav' => [
-                'section' => 'admin',
-                'page' => 'users',
-            ],
-        ]);
+        'nav' => [
+            'section' => 'admin',
+            'page' => 'users',
+        ],
+        'header' => [
+            'title' => 'Users',
+            'subtitle' => 'Manage system users and roles',
+        ],
+    ]);
     }
 }

@@ -10,7 +10,11 @@ class AuditLogsController extends Controller
         return inertia('Admin/Logs/Index', [
             'nav' => [
                 'section' => 'admin',
-                'page' => 'logs',
+                'page' => 'audit-logs',
+            ],
+            'header' => [
+                'title' => 'Audit Logs',
+                'subtitle' => 'Track user actions and system changes',
             ],
         ]);
     }
