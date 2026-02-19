@@ -36,14 +36,27 @@ Route::controller(AdminDashboardController::class)->group(function () {
 
 Route::controller(UsersController::class)->group(function () {
     Route::middleware('auth')->group(function () {
+        // Page
         Route::get('admin/users', 'index');
+        
+        //Table data
+        Route::get('admin/users/all', 'allUsers');
+
+        // Deactivate /Activate
+        Route::patch('admin/users/{user}/toggle', 'toggleActive'); //->name('admin.users.toggle')
+
+        // Edit save
+        Route::put('admin/users/{user}', 'updateUser'); //->name('admin.users.update')
     });
+
 });
 
 Route::controller(CapstoneController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         Route::get('admin/capstones', 'index');
     });
+
+    
 });
 
 Route::controller(CategoriesController::class)->group(function () {

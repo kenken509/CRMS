@@ -26,5 +26,18 @@ class UserSeeder extends Seeder
                 'updated_at' => now(),
             ]
         );
+
+        DB::table('users')->updateOrInsert(
+            ['email' => 'aries@test.com'],
+            [
+                'name' => 'Aries',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+                'is_active' => true,
+                'email_verified_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
     }
 }

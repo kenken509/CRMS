@@ -15,7 +15,7 @@ class CategoriesController extends Controller
             ],
             'header' => [
                 'title' => 'Categories',
-                'subtitle' => 'Manage system categories',
+                'subtitle' => 'Manage capstones categories',
             ],
         ]);
     }
