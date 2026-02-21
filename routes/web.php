@@ -57,6 +57,18 @@ Route::controller(UsersController::class)->group(function () {
 Route::controller(CapstoneController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         Route::get('admin/capstones', 'index');
+        
+        // Create page + store
+        Route::get('admin/capstones/create', 'create');
+        Route::post('admin/capstones', 'store');
+        Route::get('admin/capstones/{id}', 'show')->whereNumber('id');
+
+        Route::get('admin/capstones/all', 'all');              // active
+        Route::get('admin/capstones/archived', 'archived');    // archived
+
+        Route::patch('admin/capstones/{capstone}/archive', 'archive');
+         Route::patch('admin/capstones/{id}/restore', 'restore')->whereNumber('id');
+
     });
 
     

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use Database\Seeders\CapstoneSeeder;
 use Database\Seeders\CategorySeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -26,6 +27,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,
             CategorySeeder::class,
+            CapstoneSeeder::class
         ]);
     }
 }
