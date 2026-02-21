@@ -3,10 +3,10 @@ import AdminLayout from "../Layouts/AdminLayout";
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import UsersEditModal from "./Components/UsersEditModal";
-import { usePage } from "@inertiajs/react";
+import UsersCreateModal from "./Components/UsersCreateModal";
 
 export default function Index({ authUserId }) {
-
+  const [createOpen, setCreateOpen] = useState(false);
 
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState(null);
@@ -17,7 +17,7 @@ export default function Index({ authUserId }) {
   const [q, setQ] = useState("");
   const [perPage, setPerPage] = useState(10);
 
-  // Modal state
+  // Edit modal
   const [editOpen, setEditOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
@@ -59,6 +59,7 @@ export default function Index({ authUserId }) {
     }
   };
 
+  // initial load
   useEffect(() => {
     fetchUsers({ page: 1, query: "", showInitial: true });
 
@@ -69,6 +70,7 @@ export default function Index({ authUserId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -84,7 +86,7 @@ export default function Index({ authUserId }) {
     if (!linkUrl) return;
     const url = new URL(linkUrl);
     const page = Number(url.searchParams.get("page") || 1);
-    fetchUsers({ page, query: q.trim() });
+    fetchUsers({ page, query: q.trim(), per_page: perPage });
   };
 
   const toggleActive = async (id) => {
@@ -92,7 +94,7 @@ export default function Index({ authUserId }) {
       setFetching(true);
       await axios.patch(`/admin/users/${id}/toggle`);
       const currentPage = meta?.current_page ?? 1;
-      fetchUsers({ page: currentPage, query: q.trim() });
+      fetchUsers({ page: currentPage, query: q.trim(), per_page: perPage });
     } catch (err) {
       const msg = err?.response?.data?.message ?? "Action failed.";
       alert(msg);
@@ -119,8 +121,9 @@ export default function Index({ authUserId }) {
     <div className="space-y-4">
       {/* Controls */}
       <div className="rounded-md bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full max-w-xl">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          {/* Search */}
+          <div className="w-full lg:max-w-2xl">
             <label className="mb-1 block text-sm font-semibold text-primary">
               Search users
             </label>
@@ -129,7 +132,7 @@ export default function Index({ authUserId }) {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Type name, email, or role..."
-                className="w-full rounded-2xl border border-gray-300 bg-app px-4 py-2 pr-10 text-app outline-none focus:ring-2 focus:ring-accent"
+                className="w-full rounded-2xl border border-black/10 bg-app px-4 py-2 pr-10 text-app outline-none focus:ring-2 focus:ring-accent"
               />
               <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                 <span className="text-accent">⌕</span>
@@ -141,22 +144,33 @@ export default function Index({ authUserId }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-primary">Rows</span>
-            <select
-              value={perPage}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setPerPage(v);
-                fetchUsers({ page: 1, query: q.trim(), per_page: v });
-              }}
-              className="rounded-2xl border border-primary bg-white px-3 py-2 text-app hover:cursor-pointer focus:ring-2 focus:ring-accent"
+          {/* Right controls */}
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-primary">Rows</span>
+              <select
+                value={perPage}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setPerPage(v);
+                  fetchUsers({ page: 1, query: q.trim(), per_page: v });
+                }}
+                className="rounded-2xl border border-primary bg-white px-3 py-2 text-app cursor-pointer focus:ring-2 focus:ring-accent"
+              >
+                <option value={1}>1</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="rounded-2xl bg-secondary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 cursor-pointer"
             >
-              <option value={1}>1</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
+              + Add user
+            </button>
           </div>
         </div>
       </div>
@@ -226,7 +240,7 @@ export default function Index({ authUserId }) {
                         <button
                           type="button"
                           onClick={() => openEdit(u)}
-                          className="min-w-[90px] text-center rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-white hover:opacity-90 hover:cursor-pointer"
+                          className="min-w-[90px] cursor-pointer text-center rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90"
                         >
                           Edit
                         </button>
@@ -241,10 +255,10 @@ export default function Index({ authUserId }) {
                               : ""
                           }
                           className={[
-                            "min-w-[120px] text-center rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-primary hover:opacity-90 hover:cursor-pointer",
+                            "min-w-[120px] text-center rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-primary transition hover:opacity-90",
                             isSelf
                               ? "opacity-50 cursor-not-allowed hover:opacity-50"
-                              : "",
+                              : "cursor-pointer",
                           ].join(" ")}
                         >
                           {u.is_active ? "Deactivate" : "Activate"}
@@ -268,10 +282,10 @@ export default function Index({ authUserId }) {
               disabled={!l.url}
               onClick={() => goTo(l.url)}
               className={[
-                "rounded-2xl border px-3 py-2 text-sm font-semibold",
+                "rounded-2xl border px-3 py-2 text-sm font-semibold transition",
                 l.active
                   ? "border-accent bg-accent text-primary"
-                  : "border-primary bg-white text-primary hover:bg-app",
+                  : "border-primary bg-white text-primary hover:bg-app cursor-pointer",
                 !l.url ? "opacity-50 cursor-not-allowed" : "",
               ].join(" ")}
               dangerouslySetInnerHTML={{ __html: l.label }}
@@ -289,8 +303,16 @@ export default function Index({ authUserId }) {
         onClose={closeEdit}
         onSaved={onSaved}
       />
+
+      {/* Create Modal */}
+      <UsersCreateModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSaved={onSaved}
+        roles={["admin"]}
+      />
     </div>
   );
 }
 
-Index.layout = (page) => <AdminLayout   children={page} />;
+Index.layout = (page) => <AdminLayout children={page} />;

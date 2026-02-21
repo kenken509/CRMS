@@ -53,6 +53,30 @@ class UsersController extends Controller
         return response()->json($users);
     }
 
+    public function storeUser(Request $request){
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')],
+            'role' => ['required', 'string'],
+            'is_active' => ['required', 'boolean'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'], // needs password_confirmation
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => $validated['role'],
+            'is_active' => $validated['is_active'],
+            'password' => $validated['password'], // your model casts password => 'hashed'
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'User created successfully.',
+            'user_id' => $user->id,
+        ]);
+    }
+
     public function toggleActive(User $user)
     {
         // ✅ prevent deactivating your own account

@@ -47,6 +47,9 @@ Route::controller(UsersController::class)->group(function () {
 
         // Edit save
         Route::put('admin/users/{user}', 'updateUser'); //->name('admin.users.update')
+
+        // routes/web.php
+        Route::post('admin/users', [UsersController::class, 'storeUser']);  //->name('admin.users.store')
     });
 
 });
@@ -62,6 +65,18 @@ Route::controller(CapstoneController::class)->group(function () {
 Route::controller(CategoriesController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         Route::get('admin/categories', 'index');
+
+         // axios endpoint (paginated + searchable)
+        Route::get('admin/categories/all', 'allCategories');
+
+        // ✅ toggle
+        Route::patch('admin/categories/{id}/toggle', 'toggleActive');
+
+        // ✅ create
+        Route::post('admin/categories', 'store');
+
+        // update
+        Route::put('admin/categories/{id}', 'update');
     });
 });
 
