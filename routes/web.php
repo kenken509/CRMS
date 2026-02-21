@@ -67,7 +67,11 @@ Route::controller(CapstoneController::class)->group(function () {
         Route::get('admin/capstones/archived', 'archived');    // archived
 
         Route::patch('admin/capstones/{capstone}/archive', 'archive');
-         Route::patch('admin/capstones/{id}/restore', 'restore')->whereNumber('id');
+        Route::patch('admin/capstones/{id}/restore', 'restore')->whereNumber('id');
+
+         // ✅ Edit page + update
+        Route::get('admin/capstones/{id}/edit', 'edit')->whereNumber('id');
+        Route::patch('admin/capstones/{id}', 'update')->whereNumber('id');
 
     });
 

@@ -189,7 +189,7 @@ class CapstoneController extends Controller
             'nav' => ['section' => 'admin', 'page' => 'capstones'],
             'header' => [
                 'title' => 'Capstone Preview',
-                'subtitle' => 'View capstone details',
+                'subtitle' => 'View complete information for this capstone project.',
             ],
             'capstone' => $capstone,
         ]);
@@ -211,6 +211,65 @@ class CapstoneController extends Controller
 
         return response()->json([
             'message' => 'Capstone restored.',
+        ]);
+    }
+
+
+    public function edit($id)
+    {
+        $capstone = Capstone::query()->findOrFail($id);
+
+        $categories = Category::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return inertia('Admin/Capstones/Edit', [
+            'nav' => ['section' => 'admin', 'page' => 'capstones'],
+            'header' => [
+                'title' => 'Edit Capstone Record',
+                'subtitle' => 'Modify the details of the selected capstone project.',
+            ],
+            'capstone' => $capstone,
+            'categories' => $categories,
+        ]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $capstone = Capstone::query()->findOrFail($id);
+
+        $data = $request->validate([
+            'title' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('capstones', 'title')->ignore($capstone->id),
+            ],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'abstract' => ['required', 'string'],
+
+            'academic_year' => ['nullable', 'string', 'max:50'],
+            'authors' => ['nullable', 'string', 'max:255'],
+            'adviser' => ['nullable', 'string', 'max:255'],
+            'statement_of_the_problem' => ['nullable', 'string'],
+            'objectives' => ['nullable', 'string'],
+        ]);
+
+        $capstone->update([
+            'title' => trim($data['title']),
+            'category_id' => $data['category_id'],
+            'academic_year' => isset($data['academic_year']) ? trim($data['academic_year']) : null,
+            'authors' => isset($data['authors']) ? trim($data['authors']) : null,
+            'adviser' => isset($data['adviser']) ? trim($data['adviser']) : null,
+            'abstract' => isset($data['abstract']) ? trim($data['abstract']) : null,
+            'statement_of_the_problem' => $data['statement_of_the_problem'] ?? null,
+            'objectives' => $data['objectives'] ?? null,
+        ]);
+
+        return response()->json([
+            'message' => 'Capstone updated.',
+            'data' => $capstone->fresh(),
         ]);
     }
 

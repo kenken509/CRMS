@@ -102,7 +102,7 @@ export default function Show({ capstone }) {
               <>
                 <Link
                   href={`/admin/capstones/${capstone.id}/edit`}
-                  className="rounded-2xl bg-secondary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                  className="rounded-2xl bg-secondary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 cursor-pointer"
                 >
                   Edit
                 </Link>
@@ -111,7 +111,7 @@ export default function Show({ capstone }) {
                   type="button"
                   onClick={archive}
                   disabled={working}
-                  className="rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-primary transition hover:opacity-90 disabled:opacity-60"
+                  className="rounded-2xl bg-accent px-4 py-2 text-sm font-semibold text-primary transition hover:opacity-90 disabled:opacity-60 cursor-pointer"
                 >
                   {working ? "Working..." : "Archive"}
                 </button>
