@@ -43,6 +43,57 @@ class CapstoneSeeder extends Seeder
                 'adviser' => 'Prof. Daniel S. Cruz',
                 'academic_year' => '2025-2026',
             ],
+                [
+                'title' => 'Web-Based Student Attendance Monitoring System',
+                'abstract' =>
+                    'A real-time attendance tracking system that allows teachers to record, monitor, and generate attendance reports through a secure web platform.',
+                'statement_of_the_problem' =>
+                    'Manual attendance tracking is time-consuming and prone to errors, causing inaccurate reporting and delayed monitoring.',
+                'objectives' =>
+                    'Design an online attendance module, automate report generation, and implement secure login for faculty and administrators.',
+                'authors' => 'John M. Bautista, Karen L. Dizon',
+                'adviser' => 'Prof. Angela R. Torres',
+                'academic_year' => '2025-2026',
+            ],
+
+            [
+                'title' => 'Web-Based Inventory and Sales Management System for Small Businesses',
+                'abstract' =>
+                    'A cloud-based system designed to help small businesses manage inventory levels, track sales transactions, and generate financial summaries.',
+                'statement_of_the_problem' =>
+                    'Small businesses rely on manual inventory logs, leading to stock discrepancies and inaccurate sales tracking.',
+                'objectives' =>
+                    'Develop inventory tracking features, integrate sales recording, and provide real-time analytics dashboards.',
+                'authors' => 'Luis A. Mendoza, Carla P. Santiago',
+                'adviser' => 'Prof. Raymond T. Flores',
+                'academic_year' => '2025-2026',
+            ],
+
+            [
+                'title' => 'Web-Based Appointment Scheduling System for Healthcare Clinics',
+                'abstract' =>
+                    'An online appointment booking system that allows patients to schedule consultations while enabling clinics to manage schedules efficiently.',
+                'statement_of_the_problem' =>
+                    'Manual appointment scheduling leads to double bookings, missed appointments, and inefficient clinic workflow.',
+                'objectives' =>
+                    'Create an online booking portal, implement automated reminders, and provide an admin dashboard for schedule management.',
+                'authors' => 'Nicole F. Garcia, Patrick E. Navarro',
+                'adviser' => 'Prof. Maria C. Reyes',
+                'academic_year' => '2025-2026',
+            ],
+
+            [
+                'title' => 'Web-Based Learning Management System with Performance Analytics',
+                'abstract' =>
+                    'A web-based learning management system that enables teachers to upload materials, conduct quizzes, and analyze student performance data.',
+                'statement_of_the_problem' =>
+                    'Limited digital tools hinder effective monitoring of student academic progress and performance trends.',
+                'objectives' =>
+                    'Develop course management modules, integrate online assessments, and implement analytics dashboards for performance tracking.',
+                'authors' => 'Joshua K. Lim, Denise O. Herrera',
+                'adviser' => 'Prof. Arnold B. Castillo',
+                'academic_year' => '2025-2026',
+            ],
 
             'Mobile Applications' => [
                 'title' => 'Student Task Planner and Reminder Mobile App',

@@ -5,10 +5,10 @@ import { useMemo, useState } from "react";
 import { Link } from "@inertiajs/react";
 
 const PRESETS = [
-  { key: "strict", label: "Strict", help: "Only very close matches", percent: 80 },
-  { key: "balanced", label: "Balanced", help: "Recommended for most checks", percent: 75 },
-  { key: "broad", label: "Broad", help: "Shows more possible matches", percent: 65 },
-  { key: "custom", label: "Custom", help: "Set your own minimum similarity", percent: 75 },
+  { key: "strict", label: "Strict", help: "Only very close matches", percent: 90 },
+  { key: "balanced", label: "Balanced", help: "Recommended for most checks", percent: 80 },
+  { key: "broad", label: "Broad", help: "Shows more possible matches", percent: 70 },
+  { key: "custom", label: "Custom", help: "Set your own minimum similarity", percent: '' },
 ];
 
 function clamp(n, min, max) {
@@ -44,7 +44,7 @@ export default function Index({ categories, header }) {
     abstract: "",
     limit: 5,
     preset: "balanced",
-    minSimilarityPct: 75,
+    minSimilarityPct: 80,
   });
 
   const [loading, setLoading] = useState(false);
@@ -241,7 +241,7 @@ export default function Index({ categories, header }) {
                       >
                         {PRESETS.map((p) => (
                           <option key={p.key} value={p.key}>
-                            {p.label} ({p.percent}%)
+                            {p.label} {p.percent}%
                           </option>
                         ))}
                       </select>

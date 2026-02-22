@@ -182,9 +182,50 @@ class CapstoneController extends Controller
         ]);
     }
 
+    // public function update(Request $request, $id)
+    // {
+    //     $capstone = Capstone::query()->findOrFail($id);
+
+    //     $data = $request->validate([
+    //         'title' => [
+    //             'required',
+    //             'string',
+    //             'max:255',
+    //             Rule::unique('capstones', 'title')->ignore($capstone->id),
+    //         ],
+    //         'category_id' => ['required', 'integer', 'exists:categories,id'],
+    //         'abstract' => ['required', 'string'],
+
+    //         'academic_year' => ['nullable', 'string', 'max:50'],
+    //         'authors' => ['nullable', 'string', 'max:255'],
+    //         'adviser' => ['nullable', 'string', 'max:255'],
+    //         'statement_of_the_problem' => ['nullable', 'string'],
+    //         'objectives' => ['nullable', 'string'],
+    //     ]);
+
+    //     $capstone->update([
+    //         'title' => trim($data['title']),
+    //         'category_id' => $data['category_id'],
+    //         'academic_year' => isset($data['academic_year']) ? trim($data['academic_year']) : null,
+    //         'authors' => isset($data['authors']) ? trim($data['authors']) : null,
+    //         'adviser' => isset($data['adviser']) ? trim($data['adviser']) : null,
+    //         'abstract' => isset($data['abstract']) ? trim($data['abstract']) : null,
+    //         'statement_of_the_problem' => $data['statement_of_the_problem'] ?? null,
+    //         'objectives' => $data['objectives'] ?? null,
+    //     ]);
+
+    //     return response()->json([
+    //         'message' => 'Capstone updated.',
+    //         'data' => $capstone->fresh(),
+    //     ]);
+    // }
+
+    // update with embedding
+
+
     public function update(Request $request, $id)
     {
-        $capstone = Capstone::query()->findOrFail($id);
+        $capstone = Capstone::query()->with('category:id,name')->findOrFail($id);
 
         $data = $request->validate([
             'title' => [
@@ -196,34 +237,189 @@ class CapstoneController extends Controller
             'category_id' => ['required', 'integer', 'exists:categories,id'],
             'abstract' => ['required', 'string'],
 
-            'academic_year' => ['nullable', 'string', 'max:50'],
-            'authors' => ['nullable', 'string', 'max:255'],
-            'adviser' => ['nullable', 'string', 'max:255'],
+            'academic_year'            => ['nullable', 'string', 'max:50'],
+            'authors'                  => ['nullable', 'string', 'max:255'],
+            'adviser'                  => ['nullable', 'string', 'max:255'],
             'statement_of_the_problem' => ['nullable', 'string'],
-            'objectives' => ['nullable', 'string'],
+            'objectives'               => ['nullable', 'string'],
         ]);
 
-        $capstone->update([
-            'title' => trim($data['title']),
-            'category_id' => $data['category_id'],
-            'academic_year' => isset($data['academic_year']) ? trim($data['academic_year']) : null,
-            'authors' => isset($data['authors']) ? trim($data['authors']) : null,
-            'adviser' => isset($data['adviser']) ? trim($data['adviser']) : null,
-            'abstract' => isset($data['abstract']) ? trim($data['abstract']) : null,
-            'statement_of_the_problem' => $data['statement_of_the_problem'] ?? null,
-            'objectives' => $data['objectives'] ?? null,
-        ]);
+        // normalize
+        $newTitle = trim($data['title']);
+        $newCategoryId = (int) $data['category_id'];
+        $newAbstract = trim($data['abstract']);
 
-        return response()->json([
-            'message' => 'Capstone updated.',
-            'data' => $capstone->fresh(),
-        ]);
+        $newAcademicYear = filled($data['academic_year'] ?? null) ? trim($data['academic_year']) : null;
+        $newAuthors      = filled($data['authors'] ?? null) ? trim($data['authors']) : null;
+        $newAdviser      = filled($data['adviser'] ?? null) ? trim($data['adviser']) : null;
+
+        // detect if embedding-relevant fields changed
+        $needsReembed =
+            $capstone->title !== $newTitle ||
+            (int) $capstone->category_id !== $newCategoryId ||
+            $capstone->abstract !== $newAbstract;
+
+        // external config (same as store)
+        $ollamaBase   = rtrim((string) config('services.ollama.base_url'), '/');
+        $embedModel   = (string) config('services.ollama.embed_model');
+
+        $qUrl         = rtrim((string) config('services.qdrant.url'), '/');
+        $collection   = (string) config('services.qdrant.collection');
+        $expectedDims = (int) config('services.qdrant.vector_size', 768);
+
+        $qApiKey      = (string) config('services.qdrant.api_key');
+        $qHeaders     = [];
+        if (!empty($qApiKey)) {
+            $qHeaders['api-key'] = $qApiKey;
+        }
+
+        set_time_limit(120);
+
+        try {
+            // 1) Update DB first (fast + user sees changes even if embedding fails)
+            DB::transaction(function () use ($capstone, $newTitle, $newCategoryId, $newAbstract, $newAcademicYear, $newAuthors, $newAdviser, $data, $needsReembed) {
+                $capstone->update([
+                    'title' => $newTitle,
+                    'category_id' => $newCategoryId,
+                    'abstract' => $newAbstract,
+
+                    'academic_year' => $newAcademicYear,
+                    'authors' => $newAuthors,
+                    'adviser' => $newAdviser,
+
+                    'statement_of_the_problem' => $data['statement_of_the_problem'] ?? null,
+                    'objectives' => $data['objectives'] ?? null,
+
+                    // If we need re-embed, mark pending immediately
+                    'embedding_status' => $needsReembed ? 'pending' : $capstone->embedding_status,
+                    'embedding_error'  => $needsReembed ? null : $capstone->embedding_error,
+                    'embedded_at'      => $needsReembed ? null : $capstone->embedded_at,
+                ]);
+            });
+
+            if (!$needsReembed) {
+                return response()->json([
+                    'message' => 'Capstone updated.',
+                    'data' => $capstone->fresh(['category:id,name', 'creator:id,name']),
+                ]);
+            }
+
+            // 2) Reload category name after update
+            $capstone->load('category:id,name');
+            $categoryName = $capstone->category?->name ?? 'Uncategorized';
+
+            // 3) Build embedding text (same template)
+            $embedText = trim(implode("\n", [
+                "Title: {$capstone->title}",
+                "Category: {$categoryName}",
+                "Abstract: {$capstone->abstract}",
+            ]));
+
+            // 4) Ollama embedding
+            $embRes = Http::connectTimeout(5)
+                ->timeout(90)
+                ->post("{$ollamaBase}/api/embeddings", [
+                    'model'  => $embedModel,
+                    'prompt' => $embedText,
+                ]);
+
+            if (!$embRes->successful()) {
+                throw new \RuntimeException("Ollama embed failed: {$embRes->status()} {$embRes->body()}");
+            }
+
+            $vector = $embRes->json('embedding');
+
+            if (!is_array($vector)) {
+                throw new \RuntimeException("Ollama returned invalid embedding payload.");
+            }
+
+            if (count($vector) !== $expectedDims) {
+                $got = count($vector);
+                throw new \RuntimeException("Embedding dimension mismatch. Expected {$expectedDims}, got {$got}");
+            }
+
+            $vector = array_map('floatval', $vector);
+
+            // 5) Qdrant upsert (same point id)
+            $payload = [
+                'capstone_id'  => (int) $capstone->id,
+                'title'        => $capstone->title,
+                'category_id'  => (int) $capstone->category_id,
+                'category'     => $categoryName,
+                'abstract'     => $capstone->abstract,
+                'updated_at'   => optional($capstone->updated_at)->toIso8601String(),
+            ];
+
+            $upsertRes = Http::withHeaders($qHeaders)
+                ->timeout(20)
+                ->put("{$qUrl}/collections/{$collection}/points?wait=true", [
+                    'points' => [[
+                        'id'      => (int) $capstone->id,
+                        'vector'  => $vector,
+                        'payload' => $payload,
+                    ]],
+                ]);
+
+            if (!$upsertRes->successful()) {
+                throw new \RuntimeException("Qdrant upsert failed: {$upsertRes->status()} {$upsertRes->body()}");
+            }
+
+            // 6) mark synced
+            $capstone->forceFill([
+                'embedding_status' => 'synced',
+                'embedded_at'      => now(),
+                'embedding_error'  => null,
+            ])->save();
+
+            return response()->json([
+                'message' => 'Capstone updated & re-indexed.',
+                'data' => $capstone->fresh(['category:id,name', 'creator:id,name']),
+            ]);
+
+        } catch (QueryException $e) {
+            $mysqlCode = $e->errorInfo[1] ?? null;
+            if ($mysqlCode === 1062) {
+                return response()->json([
+                    'message' => 'Title already exists.',
+                    'errors'  => ['title' => ['This title is already registered.']],
+                ], 422);
+            }
+
+            Log::error('Capstone update QueryException.', [
+                'capstone_id' => $capstone->id,
+                'user_id'     => optional($request->user())->id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Server error while updating capstone.',
+            ], 500);
+
+        } catch (\Throwable $e) {
+            // Don’t rollback DB changes; instead mark embedding as failed for visibility
+            try {
+                $capstone->forceFill([
+                    'embedding_status' => 'failed',
+                    'embedding_error'  => mb_strimwidth($e->getMessage(), 0, 1000, '...'),
+                ])->save();
+            } catch (\Throwable $inner) {
+                // ignore
+            }
+
+            Log::error('Capstone update failed (embedding/qdrant).', [
+                'capstone_id' => $capstone->id,
+                'user_id'     => optional($request->user())->id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            // 503 like your store() (AI infra / remote dependency)
+            return response()->json([
+                'message' => 'Capstone updated, but indexing failed. Please try again.',
+            ], 503);
+        }
     }
 
     // store and embed capstones
-  
-
-
     public function store(Request $request)
     {
         $data = $request->validate([
