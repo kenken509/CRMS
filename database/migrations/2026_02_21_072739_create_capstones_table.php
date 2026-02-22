@@ -11,39 +11,30 @@ return new class extends Migration {
         Schema::create('capstones', function (Blueprint $table) {
             $table->id();
 
-            // Core Information
             $table->string('title')->unique();
             $table->longText('abstract')->nullable();
             $table->longText('statement_of_the_problem')->nullable();
             $table->longText('objectives')->nullable();
 
-            // Metadata
             $table->text('authors')->nullable();
             $table->string('adviser')->nullable();
-            $table->string('academic_year', 9)->nullable(); // e.g. 2025-2026
+            $table->string('academic_year', 9)->nullable();
 
-            // Category Relationship
-            $table->foreignId('category_id')
-                ->constrained('categories')
-                ->cascadeOnUpdate()
-                ->restrictOnDelete();
-
-            // Encoded By (Accountability - Required)
-            $table->foreignId('created_by')
-                ->constrained('users')
-                ->cascadeOnUpdate()
-                ->restrictOnDelete();
+            $table->foreignId('category_id')->constrained('categories')->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreignId('created_by')->constrained('users')->cascadeOnUpdate()->restrictOnDelete();
 
             $table->timestamps();
-            $table->softDeletes(); // Archive support
+            $table->softDeletes();
 
-            // Indexes for performance
+            // Embedding fields (NO ->after() in create)
+            $table->string('embedding_status')->default('pending');
+            $table->text('embedding_error')->nullable();
+            $table->timestamp('embedded_at')->nullable();
+
             $table->index(['category_id']);
             $table->index(['academic_year']);
             $table->index(['created_by']);
-
-            // Optional (enable if using MySQL 8+ InnoDB fulltext)
-            // $table->fullText(['title', 'abstract']);
+            $table->index(['embedding_status']);
         });
     }
 

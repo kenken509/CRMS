@@ -4,7 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Capstone;
 use App\Models\Category;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class CapstoneController extends Controller
@@ -71,65 +76,7 @@ class CapstoneController extends Controller
             ],
             'categories' => $categories,
         ]);
-    }
-
-    public function store(Request $request)
-    {
-        // ✅ Always validate unique BEFORE insert (better UX)
-        $data = $request->validate([
-            'title' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('capstones', 'title'), // your DB has unique anyway
-            ],
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
-            'abstract' => ['required', 'string'],
-
-            'academic_year' => ['nullable', 'string', 'max:9'],
-            'authors' => ['nullable', 'string'],
-            'adviser' => ['nullable', 'string', 'max:255'],
-            'statement_of_the_problem' => ['nullable', 'string'],
-            'objectives' => ['nullable', 'string'],
-        ]);
-
-        try {
-            $capstone = Capstone::create([
-                'title' => trim($data['title']),
-                'category_id' => $data['category_id'],
-                'abstract' => trim($data['abstract']),
-                'academic_year' => $data['academic_year'] ? trim($data['academic_year']) : null,
-                'authors' => $data['authors'] ? trim($data['authors']) : null,
-                'adviser' => $data['adviser'] ? trim($data['adviser']) : null,
-                'statement_of_the_problem' => $data['statement_of_the_problem'] ?? null,
-                'objectives' => $data['objectives'] ?? null,
-                'created_by' => $request->user()->id,
-            ]);
-        } catch (UniqueConstraintViolationException $e) {
-            // ✅ Laravel may throw this directly for duplicate unique keys
-            return response()->json([
-                'message' => 'Title already exists.',
-                'errors' => ['title' => ['This title is already registered.']],
-            ], 422);
-        } catch (QueryException $e) {
-            // ✅ Backup for MySQL duplicate entry
-            $mysqlCode = $e->errorInfo[1] ?? null;
-            if ($mysqlCode === 1062) {
-                return response()->json([
-                    'message' => 'Title already exists.',
-                    'errors' => ['title' => ['This title is already registered.']],
-                ], 422);
-            }
-            throw $e;
-        }
-
-        return response()->json([
-            'message' => 'Capstone created.',
-            'data' => $capstone,
-        ], 201);
-    }
-
-    
+    }    
 
     public function archived(Request $request)
     {
@@ -272,5 +219,204 @@ class CapstoneController extends Controller
             'data' => $capstone->fresh(),
         ]);
     }
+
+    // store and embed capstones
+  
+
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'title' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('capstones', 'title'),
+            ],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'abstract'    => ['required', 'string'],
+
+            // optional fields
+            'academic_year'            => ['nullable', 'string', 'max:9'],
+            'authors'                  => ['nullable', 'string'],
+            'adviser'                  => ['nullable', 'string', 'max:255'],
+            'statement_of_the_problem' => ['nullable', 'string'],
+            'objectives'               => ['nullable', 'string'],
+        ]);
+
+        // external config
+        $ollamaBase   = rtrim((string) config('services.ollama.base_url'), '/');
+        $embedModel   = (string) config('services.ollama.embed_model');
+
+        $qUrl         = rtrim((string) config('services.qdrant.url'), '/');
+        $collection   = (string) config('services.qdrant.collection');
+        $expectedDims = (int) config('services.qdrant.vector_size', 768);
+
+        $qApiKey      = (string) config('services.qdrant.api_key');
+        $qHeaders     = [];
+        if (!empty($qApiKey)) {
+            $qHeaders['api-key'] = $qApiKey; // Qdrant Cloud
+        }
+
+        // allow cold starts / latency
+        set_time_limit(120);
+
+        $capstoneId = null;
+        $qdrantUpserted = false;
+
+        try {
+            $capstone = DB::transaction(function () use ($request, $data, &$capstoneId) {
+                $capstone = Capstone::create([
+                    'title'       => trim($data['title']),
+                    'category_id' => (int) $data['category_id'],
+                    'abstract'    => trim($data['abstract']),
+
+                    'academic_year'            => isset($data['academic_year']) && $data['academic_year'] !== null ? trim($data['academic_year']) : null,
+                    'authors'                  => isset($data['authors']) && $data['authors'] !== null ? trim($data['authors']) : null,
+                    'adviser'                  => isset($data['adviser']) && $data['adviser'] !== null ? trim($data['adviser']) : null,
+                    'statement_of_the_problem' => $data['statement_of_the_problem'] ?? null,
+                    'objectives'               => $data['objectives'] ?? null,
+
+                    'created_by' => $request->user()->id,
+
+                    // embed tracking
+                    'embedding_status' => 'pending',
+                    'embedding_error'  => null,
+                    'embedded_at'      => null,
+                ]);
+
+                $capstoneId = (int) $capstone->id;
+
+                return $capstone;
+            });
+
+            // Load category AFTER DB commit so we can build embed text safely
+            $capstone->load('category');
+
+            $categoryName = $capstone->category?->name ?? 'Uncategorized';
+
+            // 1) Build embedding text (Title + Category + Abstract)
+            $embedText = trim(implode("\n", [
+                "Title: {$capstone->title}",
+                "Category: {$categoryName}",
+                "Abstract: {$capstone->abstract}",
+            ]));
+
+            // 2) Ollama embedding
+            $embRes = Http::connectTimeout(5)
+                ->timeout(90)
+                ->post("{$ollamaBase}/api/embeddings", [
+                    'model'  => $embedModel,
+                    'prompt' => $embedText,
+                ]);
+
+            if (!$embRes->successful()) {
+                throw new \RuntimeException("Ollama embed failed: {$embRes->status()} {$embRes->body()}");
+            }
+
+            $vector = $embRes->json('embedding');
+
+            if (!is_array($vector)) {
+                throw new \RuntimeException("Ollama returned invalid embedding payload.");
+            }
+
+            if (count($vector) !== $expectedDims) {
+                $got = count($vector);
+                throw new \RuntimeException("Embedding dimension mismatch. Expected {$expectedDims}, got {$got}");
+            }
+
+            $vector = array_map('floatval', $vector);
+
+            // 3) Qdrant upsert (id = capstone id)
+            $payload = [
+                'capstone_id'  => $capstone->id,
+                'title'        => $capstone->title,
+                'category_id'  => $capstone->category_id,
+                'category'     => $categoryName,      // helpful for UI filters
+                'abstract'     => $capstone->abstract, // preview/snippet
+                'updated_at'   => optional($capstone->updated_at)->toIso8601String(),
+            ];
+
+            $upsertRes = Http::withHeaders($qHeaders)
+                ->timeout(20)
+                ->put("{$qUrl}/collections/{$collection}/points?wait=true", [
+                    'points' => [[
+                        'id'      => (int) $capstone->id,
+                        'vector'  => $vector,
+                        'payload' => $payload,
+                    ]],
+                ]);
+
+            if (!$upsertRes->successful()) {
+                throw new \RuntimeException("Qdrant upsert failed: {$upsertRes->status()} {$upsertRes->body()}");
+            }
+
+            $qdrantUpserted = true;
+
+            // 4) mark synced
+            $capstone->forceFill([
+                'embedding_status' => 'synced',
+                'embedded_at'      => now(),
+                'embedding_error'  => null,
+            ])->save();
+
+            Log::info('Capstone created & indexed successfully.', [
+                'capstone_id' => $capstone->id,
+                'user_id'     => $request->user()->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Capstone created.',
+                'data'    => $capstone->fresh(['category:id,name', 'creator:id,name']),
+            ], 201);
+
+        } catch (QueryException $e) {
+            // MySQL duplicate key (title unique)
+            $mysqlCode = $e->errorInfo[1] ?? null;
+            if ($mysqlCode === 1062) {
+                return response()->json([
+                    'message' => 'Title already exists.',
+                    'errors'  => ['title' => ['This title is already registered.']],
+                ], 422);
+            }
+
+            Log::error('Capstone store QueryException.', [
+                'capstone_id' => $capstoneId,
+                'user_id'     => optional($request->user())->id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Server error while saving capstone.',
+            ], 500);
+
+        } catch (\Throwable $e) {
+            // compensate if Qdrant already has point but something else failed afterwards
+            if ($qdrantUpserted && $capstoneId) {
+                try {
+                    Http::withHeaders($qHeaders)
+                        ->timeout(15)
+                        ->post("{$qUrl}/collections/{$collection}/points/delete?wait=true", [
+                            'points' => [(int) $capstoneId],
+                        ]);
+                } catch (\Throwable $deleteError) {
+                    Log::warning('Failed to compensate Qdrant delete.', [
+                        'capstone_id'   => $capstoneId,
+                        'delete_error'  => $deleteError->getMessage(),
+                    ]);
+                }
+            }
+
+            Log::error('Capstone store failed.', [
+                'capstone_id' => $capstoneId,
+                'user_id'     => optional($request->user())->id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Unable to create capstone right now. Please try again.',
+            ], 503);
+        }
+    }  
 
 }

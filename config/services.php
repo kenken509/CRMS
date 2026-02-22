@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    // ✅ ADD THIS:
+    'ollama' => [
+        'base_url' => env('OLLAMA_BASE_URL', 'http://localhost:11434'),
+        'embed_model' => env('OLLAMA_EMBED_MODEL', 'nomic-embed-text'),
+    ],
+
+    // ✅ ADD THIS:
+    'qdrant' => [
+        'url' => env('QDRANT_URL', 'http://localhost:6333'),
+        'api_key' => env('QDRANT_API_KEY'),
+        'collection' => env('QDRANT_COLLECTION', 'capstones'),
+        'vector_size' => (int) env('QDRANT_VECTOR_SIZE', 768),
+        'distance' => env('QDRANT_DISTANCE', 'Cosine'),
+    ],
+
 ];

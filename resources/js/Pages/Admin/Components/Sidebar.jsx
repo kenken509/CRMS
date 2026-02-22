@@ -14,6 +14,7 @@ export default function Sidebar() {
 
   return (
     <aside className="hidden w-[280px] shrink-0 p-4 md:block">
+     
       <div className="flex h-full flex-col rounded-3xl bg-primary p-4 shadow-lg">
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 py-3">
@@ -101,6 +102,7 @@ export default function Sidebar() {
           </Link>
         </div>
       </div>
+      
     </aside>
   );
 }
