@@ -8,12 +8,13 @@ use App\Http\Controllers\CapstoneController;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\IndexController;
 use App\Http\Controllers\ProposalCheckerController;
+use App\Http\Controllers\TestController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 
-Route::controller(IndexController::class)->group(function(){
-    Route::get('/','index');
+Route::controller(IndexController::class)->group(function () {
+    Route::get('/', 'index');
 });
 
 Route::controller(AuthController::class)->group(function () {
@@ -25,7 +26,6 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/logout', 'destroy')
         ->middleware('auth')
         ->name('logout');
-    
 });
 
 Route::controller(AdminDashboardController::class)->group(function () {
@@ -40,7 +40,7 @@ Route::controller(UsersController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         // Page
         Route::get('admin/users', 'index');
-        
+
         //Table data
         Route::get('admin/users/all', 'allUsers');
 
@@ -53,13 +53,12 @@ Route::controller(UsersController::class)->group(function () {
         // routes/web.php
         Route::post('admin/users', [UsersController::class, 'storeUser']);  //->name('admin.users.store')
     });
-
 });
 
 Route::controller(CapstoneController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         Route::get('admin/capstones', 'index');
-        
+
         // Create page + store
         Route::get('admin/capstones/create', 'create');
         Route::post('admin/capstones', 'store');
@@ -71,20 +70,17 @@ Route::controller(CapstoneController::class)->group(function () {
         Route::patch('admin/capstones/{capstone}/archive', 'archive');
         Route::patch('admin/capstones/{id}/restore', 'restore')->whereNumber('id');
 
-         // ✅ Edit page + update
+        // ✅ Edit page + update
         Route::get('admin/capstones/{id}/edit', 'edit')->whereNumber('id');
         Route::patch('admin/capstones/{id}', 'update')->whereNumber('id');
-
     });
-
-    
 });
 
 Route::controller(CategoriesController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         Route::get('admin/categories', 'index');
 
-         // axios endpoint (paginated + searchable)
+        // axios endpoint (paginated + searchable)
         Route::get('admin/categories/all', 'allCategories');
 
         // ✅ toggle
@@ -106,7 +102,8 @@ Route::controller(ProposalCheckerController::class)->group(function () {
 
 Route::controller(AuditLogsController::class)->group(function () {
     Route::middleware('auth')->group(function () {
-        Route::get('admin/logs', 'index');
+        Route::get('admin/logs', 'index')->name('admin.logs.index');
+        Route::get('admin/logs/all', 'all')->name('admin.logs.all');
     });
 });
 
@@ -135,7 +132,7 @@ Route::get('/test-embedding-dimension', function () {
     ];
 });
 
-Route::controller(AiStatusController::class)->group(function (){
+Route::controller(AiStatusController::class)->group(function () {
     Route::middleware('auth')->group(function () {
         Route::get('admin/ai/status', 'status');
         Route::post('admin/ai/warmup',  'warmup');
@@ -152,4 +149,8 @@ Route::get('/test-qdrant', function () {
 Route::controller(ProposalCheckerController::class)->middleware('auth')->group(function () {
     Route::get('admin/proposal-checker', 'index');          // UI page
     Route::post('admin/proposal-checker/check', 'check');  // API action
+});
+
+Route::controller(TestController::class)->group(function () {
+    Route::get('/test-pages/tasklist', 'TaskList');
 });

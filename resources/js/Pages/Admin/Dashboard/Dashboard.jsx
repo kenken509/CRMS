@@ -32,10 +32,10 @@ function ActivityItem({ item }) {
     <div className="flex items-start justify-between gap-3 rounded-2xl border border-black/10 bg-app p-4">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-app">{item.title}</p>
+          <p className="truncate text-sm font-semibold text-app">{item.title} </p>
           {item.badge ? <Badge tone={tone}>{item.badge}</Badge> : null}
         </div>
-
+        
         <p className="mt-1 text-xs text-black/60">
           {item.meta}
           {item.sub ? <span className="text-black/40"> • </span> : null}

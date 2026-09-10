@@ -1,19 +1,21 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
-     public function showLogin(){
+    public function showLogin()
+    {
         return inertia('Auth/Login');
     }
 
     public function store(Request $request)
     {
-        
+
         // 1️⃣ Validate input
         $credentials = $request->validate([
             'email' => ['required', 'email'],

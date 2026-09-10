@@ -8,11 +8,12 @@ use Illuminate\Validation\Rule;
 
 class UsersController extends Controller
 {
-    public function index(){
+    public function index()
+    {
         return inertia('Admin/Users/Index', [
-        'nav' => [
-            'section' => 'admin',
-            'page' => 'users',
+            'nav' => [
+                'section' => 'admin',
+                'page' => 'users',
             ],
             'header' => [
                 'title' => 'Users',
@@ -53,7 +54,8 @@ class UsersController extends Controller
         return response()->json($users);
     }
 
-    public function storeUser(Request $request){
+    public function storeUser(Request $request)
+    {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')],
@@ -122,11 +124,10 @@ class UsersController extends Controller
         }
 
         $user->update($validated);
-        
+
         return response()->json([
             'ok' => true,
             'message' => 'User updated successfully.',
         ]);
     }
-
 }
