@@ -29,9 +29,24 @@ class ProposalCheckerController extends Controller
 
     public function check(Request $request)
     {
+        dd($request->all());
         $data = $request->validate([
             'title'       => ['required', 'string', 'max:255'],
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'category_id' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    if ($value === 'all') {
+                        return;
+                    }
+
+                    if (
+                        !is_numeric($value) ||
+                        !Category::whereKey((int) $value)->exists()
+                    ) {
+                        $fail('The selected category is invalid.');
+                    }
+                },
+            ],
             'abstract'    => ['required', 'string'],
             'limit'       => ['nullable', 'integer', 'min:1', 'max:20'],
             'threshold'   => ['nullable', 'numeric', 'min:0', 'max:1'],
@@ -123,6 +138,9 @@ class ProposalCheckerController extends Controller
             Log::error('Proposal checker failed.', [
                 'error' => $e->getMessage(),
                 'user_id' => optional($request->user())->id,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -131,10 +149,10 @@ class ProposalCheckerController extends Controller
         }
     }
 
-/**
- * Runs Qdrant search. If Qdrant complains about missing payload index for category_id,
- * it creates the index and retries once.
- */
+    /**
+     * Runs Qdrant search. If Qdrant complains about missing payload index for category_id,
+     * it creates the index and retries once.
+     */
     private function qdrantSearchWithAutoIndex(
         string $qUrl,
         string $collection,

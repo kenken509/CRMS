@@ -101,7 +101,9 @@ export default function Index({ categories, header }) {
     try {
       const res = await axios.post("/admin/proposal-checker/check", {
         title: form.title,
-        category_id: Number(form.category_id),
+        category_id: form.category_id === "all"
+        ? "all"
+        : Number(form.category_id),
         abstract: form.abstract,
         limit: Number(form.limit),
         threshold,
@@ -204,6 +206,7 @@ export default function Index({ categories, header }) {
                         onChange={onChange("category_id")}
                       >
                         <option value="">Select...</option>
+                        <option value="all">All Categories</option>
                         {categories?.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
