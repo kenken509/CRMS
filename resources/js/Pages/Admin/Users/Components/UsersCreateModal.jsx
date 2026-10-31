@@ -15,8 +15,6 @@ export default function UsersCreateModal({
     email: "",
     role: "admin",
     is_active: true,
-    password: "",
-    password_confirmation: "",
   });
 
   useEffect(() => {
@@ -28,8 +26,6 @@ export default function UsersCreateModal({
       email: "",
       role: "admin",
       is_active: true,
-      password: "",
-      password_confirmation: "",
     });
   }, [open]);
 
@@ -148,29 +144,15 @@ export default function UsersCreateModal({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-primary">Password</label>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                className="w-full rounded-xl border border-primary/30 bg-app px-4 py-2 outline-none focus:ring-2 focus:ring-accent"
-              />
-              {errors.password && <div className="mt-1 text-xs text-red-600">{errors.password[0]}</div>}
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-semibold text-primary">Confirm</label>
-              <input
-                type="password"
-                value={form.password_confirmation}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, password_confirmation: e.target.value }))
-                }
-                className="w-full rounded-xl border border-primary/30 bg-app px-4 py-2 outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
+          <div className="rounded-xl border border-accent/50 bg-accent/10 px-4 py-3 text-sm text-primary">
+              <div className="font-semibold">Default Password</div>
+              <div className="mt-1">
+                  All newly created accounts are automatically assigned the default password:
+                  <span className="ml-1 font-bold">password</span>.
+              </div>
+              <div className="mt-1 text-xs opacity-80">
+                  Users should use this password for their initial login and are strongly advised to change it immediately after logging in.
+              </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -178,7 +160,7 @@ export default function UsersCreateModal({
               type="button"
               onClick={close}
               disabled={saving}
-              className="rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary hover:bg-app disabled:opacity-60"
+              className="rounded-xl border border-primary px-4 py-2 text-sm font-semibold text-primary hover:bg-app disabled:opacity-60 cursor-pointer"
             >
               Cancel
             </button>
@@ -186,7 +168,7 @@ export default function UsersCreateModal({
             <button
               type="submit"
               disabled={saving}
-              className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60 cursor-pointer"
             >
               {saving ? "Creating..." : "Create"}
             </button>

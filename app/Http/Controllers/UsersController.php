@@ -64,35 +64,40 @@ class UsersController extends Controller
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')],
             'role' => ['required', 'string'],
             'is_active' => ['required', 'boolean'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'], // needs password_confirmation
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'role' => $validated['role'],
-            'is_active' => $validated['is_active'],
-            'password' => $validated['password'], // your model casts password => 'hashed'
-        ]);
+        $user = DB::transaction(function () use ($validated, $request) {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => $validated['role'],
+                'is_active' => $validated['is_active'],
+                'password' => 'password',
+                'must_change_password' => true,
+            ]);
 
-        Audit::log(
-            action: 'users.created',
-            entity: $user,
-            old: null,
-            new: [
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
-                'is_active' => $user->is_active,
-            ],
-            description: 'Created user: ' . $user->name,
-            userId: $request->user()->id,
-            request: $request
-        );
+            // Never include the password or password confirmation in audit values.
+            Audit::log(
+                action: 'users.created',
+                entity: $user,
+                old: null,
+                new: [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'is_active' => $user->is_active,
+                ],
+                description: 'Created user: ' . $user->name,
+                userId: $request->user()->id,
+                request: $request
+            );
+
+            return $user;
+        });
 
         return response()->json([
             'ok' => true,
-            'message' => 'User created successfully.',
+            'message' => 'User created successfully. Default password: password.',
             'user_id' => $user->id,
         ]);
     }

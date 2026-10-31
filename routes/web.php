@@ -12,6 +12,7 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ChangePasswordController;
 
 Route::controller(IndexController::class)->group(function () {
     Route::get('/', 'index');
@@ -28,12 +29,16 @@ Route::controller(AuthController::class)->group(function () {
         ->name('logout');
 });
 
-Route::controller(AdminDashboardController::class)->group(function () {
-    Route::middleware('auth')->group(function () {
-        Route::get('admin/dashboard', 'index');
-    });
+// Route::controller(AdminDashboardController::class)->group(function () {
+//     Route::middleware('auth')->group(function () {
+//         Route::get('admin/dashboard', 'index');
+//     });
 
-    //Route::get('admin/dashboard', 'index');
+//     //Route::get('admin/dashboard', 'index');
+// });
+
+Route::controller(AdminDashboardController::class)->middleware(['auth', 'password.changed'])->group(function () {
+    Route::get('admin/dashboard', 'index');
 });
 
 Route::controller(UsersController::class)->group(function () {
@@ -154,3 +159,14 @@ Route::controller(ProposalCheckerController::class)->middleware('auth')->group(f
 Route::controller(TestController::class)->group(function () {
     Route::get('/test-pages/tasklist', 'TaskList');
 });
+
+// change password
+Route::controller(ChangePasswordController::class)
+    ->middleware('auth')
+    ->group(function () {
+        Route::get('/change-password', 'show')
+            ->name('password.change');
+
+        Route::post('/change-password', 'update')
+            ->name('password.update');
+    });
