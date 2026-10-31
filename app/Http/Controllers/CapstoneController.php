@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use App\Support\Audit;
 
 class CapstoneController extends Controller
 {
@@ -555,10 +556,30 @@ class CapstoneController extends Controller
                 'embedding_error'  => null,
             ])->save();
 
+            // audit trail
+            Audit::log(
+                action: 'capstones.created',
+                entity: $capstone,
+                old: null,
+                new: [
+                    'title' => $capstone->title,
+                    'category_id' => $capstone->category_id,
+                    'academic_year' => $capstone->academic_year,
+                    'authors' => $capstone->authors,
+                    'adviser' => $capstone->adviser,
+                    'abstract' => $capstone->abstract,
+                ],
+                description: 'Created capstone: ' . $capstone->title,
+                userId: $request->user()->id,
+                request: $request
+            );
+
             Log::info('Capstone created & indexed successfully.', [
                 'capstone_id' => $capstone->id,
                 'user_id'     => $request->user()->id,
             ]);
+
+
 
             return response()->json([
                 'message' => 'Capstone created.',

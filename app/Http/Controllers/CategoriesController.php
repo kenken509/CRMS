@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Support\Audit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class CategoriesController extends Controller
@@ -22,7 +24,7 @@ class CategoriesController extends Controller
         ]);
     }
 
-   public function allCategories(Request $request)
+    public function allCategories(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
 
@@ -37,11 +39,9 @@ class CategoriesController extends Controller
                 'created_by',
                 'created_at',
             ])
-            ->with(['creator:id,name']) // ✅ only fetch what you need
+            ->with(['creator:id,name'])
             ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
-                    $sub->where('name', 'like', "%{$q}%");
-                });
+                $query->where('name', 'like', "%{$q}%");
             })
             ->orderBy('name')
             ->paginate($perPage);
@@ -60,13 +60,29 @@ class CategoriesController extends Controller
             ],
         ]);
 
-        $category = Category::create([
-            'name' => trim($data['name']),
-            'is_active' => true,
-            'created_by' => auth()->id(), // ✅ add this
-        ]);
+        $category = DB::transaction(function () use ($request, $data) {
+            $category = Category::create([
+                'name' => trim($data['name']),
+                'is_active' => true,
+                'created_by' => $request->user()->id,
+            ]);
 
-        // optional: include creator so frontend instantly has it
+            Audit::log(
+                action: 'categories.created',
+                entity: $category,
+                old: null,
+                new: [
+                    'name' => $category->name,
+                    'is_active' => (bool) $category->is_active,
+                ],
+                description: 'Created category: ' . $category->name,
+                userId: $request->user()->id,
+                request: $request
+            );
+
+            return $category;
+        });
+
         $category->load('creator:id,name');
 
         return response()->json([
@@ -88,29 +104,63 @@ class CategoriesController extends Controller
             ],
         ]);
 
-        $category->name = trim($data['name']);
-        $category->save();
+        $newName = trim($data['name']);
+        $oldName = $category->name;
+
+        if ($oldName !== $newName) {
+            DB::transaction(function () use ($request, $category, $oldName, $newName) {
+                $category->update([
+                    'name' => $newName,
+                ]);
+
+                Audit::log(
+                    action: 'categories.updated',
+                    entity: $category,
+                    old: ['name' => $oldName],
+                    new: ['name' => $newName],
+                    description: 'Updated category: ' . $oldName . ' to ' . $newName,
+                    userId: $request->user()->id,
+                    request: $request
+                );
+            });
+        }
 
         $category->load('creator:id,name');
 
         return response()->json([
             'message' => 'Category updated.',
-            'data' => $category,
+            'data' => $category->fresh()->load('creator:id,name'),
         ]);
     }
 
-    public function toggleActive($id)
+    public function toggleActive(Request $request, $id)
     {
         $category = Category::findOrFail($id);
 
-        $category->is_active = ! (bool) $category->is_active;
-        $category->save();
+        $oldStatus = (bool) $category->is_active;
+        $newStatus = !$oldStatus;
+
+        DB::transaction(function () use ($request, $category, $oldStatus, $newStatus) {
+            $category->update([
+                'is_active' => $newStatus,
+            ]);
+
+            Audit::log(
+                action: $newStatus ? 'categories.activated' : 'categories.deactivated',
+                entity: $category,
+                old: ['is_active' => $oldStatus],
+                new: ['is_active' => $newStatus],
+                description: ($newStatus ? 'Activated' : 'Deactivated') . ' category: ' . $category->name,
+                userId: $request->user()->id,
+                request: $request
+            );
+        });
 
         return response()->json([
-            'message' => $category->is_active ? 'Category activated.' : 'Category deactivated.',
+            'message' => $newStatus ? 'Category activated.' : 'Category deactivated.',
             'data' => [
                 'id' => $category->id,
-                'is_active' => $category->is_active,
+                'is_active' => $newStatus,
             ],
         ]);
     }

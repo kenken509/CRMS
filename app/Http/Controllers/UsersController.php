@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use App\Support\Audit;
+use Illuminate\Support\Facades\DB;
+
 
 class UsersController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         return inertia('Admin/Users/Index', [
             'nav' => [
@@ -19,7 +22,7 @@ class UsersController extends Controller
                 'title' => 'Users',
                 'subtitle' => 'Manage system users and roles',
             ],
-            'authUserId' => auth()->id(), // ✅ needed on frontend
+            'authUserId' => $request->user()->id, // ✅ needed on frontend
         ]);
     }
 
@@ -72,6 +75,21 @@ class UsersController extends Controller
             'password' => $validated['password'], // your model casts password => 'hashed'
         ]);
 
+        Audit::log(
+            action: 'users.created',
+            entity: $user,
+            old: null,
+            new: [
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'is_active' => $user->is_active,
+            ],
+            description: 'Created user: ' . $user->name,
+            userId: $request->user()->id,
+            request: $request
+        );
+
         return response()->json([
             'ok' => true,
             'message' => 'User created successfully.',
@@ -79,23 +97,39 @@ class UsersController extends Controller
         ]);
     }
 
-    public function toggleActive(User $user)
+    public function toggleActive(Request $request, User $user)
     {
-        // ✅ prevent deactivating your own account
-        if ((int) $user->id === (int) auth()->id()) {
+        // Prevent deactivating your own account
+        if ((int) $user->id === (int) $request->user()->id) {
             return response()->json([
                 'ok' => false,
                 'message' => 'You cannot deactivate your own account.',
             ], 422);
         }
 
-        $user->update([
-            'is_active' => !$user->is_active,
-        ]);
+        $oldStatus = (bool) $user->is_active;
+        $newStatus = !$oldStatus;
+
+        DB::transaction(function () use ($request, $user, $oldStatus, $newStatus) {
+
+            $user->update([
+                'is_active' => $newStatus,
+            ]);
+
+            Audit::log(
+                action: $newStatus ? 'users.activated' : 'users.deactivated',
+                entity: $user,
+                old: ['is_active' => $oldStatus],
+                new: ['is_active' => $newStatus],
+                description: ($newStatus ? 'Activated' : 'Deactivated') . ' user: ' . $user->name,
+                userId: $request->user()->id,
+                request: $request
+            );
+        });
 
         return response()->json([
             'ok' => true,
-            'is_active' => (bool) $user->is_active,
+            'is_active' => (bool) $user->fresh()->is_active,
         ]);
     }
 
@@ -114,7 +148,7 @@ class UsersController extends Controller
         ]);
 
         // 🔒 Prevent self-deactivation
-        if ((int) $user->id === (int) auth()->id() && $validated['is_active'] === false) {
+        if ((int) $user->id === (int) $request->user()->id && !(bool) $validated['is_active']) {
             return response()->json([
                 'message' => 'You cannot deactivate your own account.',
                 'errors' => [
@@ -123,7 +157,38 @@ class UsersController extends Controller
             ], 422);
         }
 
-        $user->update($validated);
+        // Capture only fields that are actually changing. Do not include passwords.
+        $user->fill($validated);
+        $changedFields = array_keys($user->getDirty());
+
+        if (empty($changedFields)) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'No changes detected.',
+            ]);
+        }
+
+        $oldValues = [];
+        $newValues = [];
+
+        foreach ($changedFields as $field) {
+            $oldValues[$field] = $user->getOriginal($field);
+            $newValues[$field] = $user->getAttribute($field);
+        }
+
+        DB::transaction(function () use ($user, $oldValues, $newValues, $request) {
+            $user->save();
+
+            Audit::log(
+                action: 'users.updated',
+                entity: $user,
+                old: $oldValues,
+                new: $newValues,
+                description: 'Updated user: ' . $user->name,
+                userId: $request->user()->id,
+                request: $request
+            );
+        });
 
         return response()->json([
             'ok' => true,
