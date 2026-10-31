@@ -102,6 +102,27 @@ export default function Index({ authUserId }) {
     }
   };
 
+  const resetPassword = async (u) => {
+    const confirmed = window.confirm(
+      `Reset the password for ${u.name}?\n\nTheir temporary password will become: password\nThey must change it after their next login.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setFetching(true);
+      const res = await axios.post(`/admin/users/${u.id}/reset-password`);
+      window.alert(res.data?.message ?? "Password reset successfully.");
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ??
+        "Unable to reset this user's password.";
+      window.alert(msg);
+    } finally {
+      setFetching(false);
+    }
+  };
+
   const openEdit = (u) => {
     setSelectedUser(u);
     setEditOpen(true);
@@ -243,6 +264,25 @@ export default function Index({ authUserId }) {
                           className="min-w-[90px] cursor-pointer text-center rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90"
                         >
                           Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => resetPassword(u)}
+                          disabled={isSelf || fetching}
+                          title={
+                            isSelf
+                              ? "You cannot reset your own password"
+                              : "Reset this user's password to the temporary default"
+                          }
+                          className={[
+                            "min-w-[120px] text-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100",
+                            isSelf || fetching
+                              ? "opacity-50 cursor-not-allowed"
+                              : "cursor-pointer",
+                          ].join(" ")}
+                        >
+                          Reset Password
                         </button>
 
                         <button

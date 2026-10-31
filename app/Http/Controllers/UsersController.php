@@ -138,6 +138,45 @@ class UsersController extends Controller
         ]);
     }
 
+    public function resetPassword(Request $request, User $user)
+    {
+        // Prevent an administrator from resetting their own account.
+        if ((int) $user->id === (int) $request->user()->id) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'You cannot reset your own password.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($request, $user) {
+            $oldValues = [
+                'must_change_password' => (bool) $user->must_change_password,
+            ];
+
+            $user->update([
+                'password' => 'password',
+                'must_change_password' => true,
+            ]);
+
+            Audit::log(
+                action: 'users.password_reset',
+                entity: $user,
+                old: $oldValues,
+                new: [
+                    'must_change_password' => true,
+                ],
+                description: 'Reset password for user: ' . $user->name,
+                userId: $request->user()->id,
+                request: $request
+            );
+        });
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Password reset successfully. Temporary password: password.',
+        ]);
+    }
+
     public function updateUser(Request $request, User $user)
     {
         $validated = $request->validate([

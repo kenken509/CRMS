@@ -57,6 +57,9 @@ Route::controller(UsersController::class)->group(function () {
 
         // routes/web.php
         Route::post('admin/users', [UsersController::class, 'storeUser']);  //->name('admin.users.store')
+
+        // reset password
+        Route::post('admin/users/{user}/reset-password', 'resetPassword');
     });
 });
 
