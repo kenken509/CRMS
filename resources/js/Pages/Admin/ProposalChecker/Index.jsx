@@ -52,6 +52,7 @@ export default function Index({ categories, header }) {
   const [raw, setRaw] = useState([]);
   const [error, setError] = useState(null);
   const [showAll, setShowAll] = useState(false);
+  const [reportData, setReportData] = useState(null);
 
   const canSubmit = useMemo(() => {
     return (
@@ -97,6 +98,7 @@ export default function Index({ categories, header }) {
     setMatches([]);
     setRaw([]);
     setShowAll(false);
+    setReportData(null);
 
     try {
       const res = await axios.post("/admin/proposal-checker/check", {
@@ -111,12 +113,121 @@ export default function Index({ categories, header }) {
 
       setMatches(res.data.matches || []);
       setRaw(res.data.raw || []);
+      setReportData({ query: res.data.query, matches: res.data.matches || [], raw: res.data.raw || [] });
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || "Something went wrong.";
       setError(msg);
     } finally {
       setLoading(false);
     }
+  }
+
+
+  function generatePrintableReport() {
+    if (!reportData?.query) return;
+
+    const escapeHtml = (value) =>
+      String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[char]);
+
+    const query = reportData.query;
+    const reportMatches = reportData.matches || [];
+    const generatedAt = new Date().toLocaleString();
+    const reportNumber = `SCR-${Date.now().toString().slice(-10)}`;
+
+    const rows = reportMatches.length
+      ? reportMatches.map((match, index) => {
+          const payload = match.payload || {};
+          const score = (Number(match.score || 0) * 100).toFixed(1);
+          const risk = riskFromScore(match.score).label;
+          return `
+            <tr>
+              <td>${index + 1}</td>
+              <td>
+                <strong>${escapeHtml(payload.title || "Untitled")}</strong>
+                <div class="muted">${escapeHtml(payload.category || "Uncategorized")}</div>
+                ${payload.capstone_id ? `<div class="muted">Record ID: ${escapeHtml(payload.capstone_id)}</div>` : ""}
+              </td>
+              <td class="score">${score}%</td>
+              <td>${escapeHtml(risk)}</td>
+              <td>${escapeHtml(payload.academic_year || "—")}</td>
+            </tr>`;
+        }).join("")
+      : `<tr><td colspan="5" class="empty">No existing records met the selected similarity threshold.</td></tr>`;
+
+    const reportWindow = window.open("", "_blank");
+    if (!reportWindow) {
+      setError("The report window was blocked. Please allow pop-ups for this site and try again.");
+      return;
+    }
+
+    reportWindow.document.open();
+    reportWindow.document.write(`<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title> </title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 36px; color: #17221d; font: 13px/1.55 Arial, sans-serif; }
+          .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }\n          .print-help { color: #66736b; font-size: 12px; }
+          .print-btn { border: 0; border-radius: 6px; padding: 10px 18px; background: #174b35; color: white; font-weight: 700; cursor: pointer; }
+          header { border-bottom: 3px solid #174b35; padding-bottom: 18px; margin-bottom: 24px; }
+          .eyebrow { color: #92752c; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+          h1 { margin: 5px 0; font-size: 25px; }
+          .sub { color: #66736b; margin: 0; }
+          .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin: 20px 0 26px; }
+          .meta div { border-bottom: 1px solid #e3e9e5; padding: 8px 0; }
+          .label { display: block; color: #66736b; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+          .value { font-weight: 600; overflow-wrap: anywhere; }
+          h2 { margin: 24px 0 10px; font-size: 15px; }
+          .abstract { white-space: pre-wrap; border: 1px solid #dfe6e1; border-radius: 6px; padding: 12px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #dfe6e1; padding: 9px; text-align: left; vertical-align: top; }
+          th { background: #edf3ef; font-size: 11px; text-transform: uppercase; }
+          .score { font-weight: 700; white-space: nowrap; }
+          .muted { color: #66736b; font-size: 11px; margin-top: 3px; }
+          .empty { text-align: center; color: #66736b; padding: 22px; }
+          .notice { margin-top: 24px; padding: 12px; background: #f4f6f4; border-left: 3px solid #92752c; color: #4c5b52; font-size: 11px; }
+          footer { margin-top: 34px; border-top: 1px solid #dfe6e1; padding-top: 12px; color: #7a857e; font-size: 10px; display: flex; justify-content: space-between; }
+          @page { size: A4; margin: 16mm; }
+          @media print { body { padding: 0; } .toolbar { display: none; } tr { page-break-inside: avoid; } }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar"><span class="print-help">For a clean PDF, open More settings and turn off “Headers and footers”.</span><button class="print-btn" onclick="window.print()">Print / Save as PDF</button></div>
+        <header>
+          <div class="eyebrow">Capstone Repository Management System</div>
+          <h1>Similarity Check Report</h1>
+          <p class="sub">AI-assisted semantic similarity screening</p>
+        </header>
+        <section class="meta">
+          <div><span class="label">Report Reference</span><span class="value">${reportNumber}</span></div>
+          <div><span class="label">Date Generated</span><span class="value">${escapeHtml(generatedAt)}</span></div>
+          <div><span class="label">Proposed Title</span><span class="value">${escapeHtml(query.title)}</span></div>
+          <div><span class="label">Category</span><span class="value">${escapeHtml(query.category)}</span></div>
+          <div><span class="label">Similarity Threshold</span><span class="value">${(Number(query.threshold || 0) * 100).toFixed(0)}%</span></div>
+          <div><span class="label">Records Retrieved</span><span class="value">${(reportData.raw || []).length}</span></div>
+          <div><span class="label">Matching Records</span><span class="value">${reportMatches.length}</span></div>
+          <div><span class="label">Prepared By</span><span class="value">Authenticated System User</span></div>
+        </section>
+        <h2>Proposed Abstract</h2>
+        <div class="abstract">${escapeHtml(query.abstract)}</div>
+        <h2>Similar Existing Records</h2>
+        <table>
+          <thead><tr><th style="width:5%">No.</th><th>Existing Capstone Record</th><th style="width:13%">Similarity</th><th style="width:15%">Risk Level</th><th style="width:13%">Academic Year</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="notice">
+          <strong>Important interpretation:</strong> Similarity percentages are based on semantic similarity between AI-generated text embeddings. They indicate conceptual or contextual closeness to records available in the repository. They do not establish plagiarism, copying, or academic misconduct. All results require human review and evaluation of the complete proposals.
+        </div>
+        <footer><span>CRMS · Similarity Check Report</span><span>${reportNumber}</span></footer>
+      </body>
+      </html>`);
+    reportWindow.document.close();
+    reportWindow.focus();
   }
 
   return (
@@ -173,7 +284,7 @@ export default function Index({ categories, header }) {
                   <button
                     type="submit"
                     disabled={!canSubmit || loading}
-                    className="inline-flex items-center justify-center rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center justify-center cursor-pointer rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? "Checking..." : "Check"}
                   </button>
@@ -201,7 +312,7 @@ export default function Index({ categories, header }) {
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Category">
                       <select
-                        className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
+                        className="w-full rounded-2xl border cursor-pointer border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
                         value={form.category_id}
                         onChange={onChange("category_id")}
                       >
@@ -328,6 +439,14 @@ export default function Index({ categories, header }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={generatePrintableReport}
+                    disabled={!reportData || loading}
+                    className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:cursor-pointer hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 "
+                  >
+                    Generate Report
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setShowAll(false)}
                     className={`rounded-full border px-3 py-1 text-xs font-semibold ${
                       !showAll
@@ -369,7 +488,7 @@ export default function Index({ categories, header }) {
                     </div>
                   </div>
                 ) : !raw.length ? (
-                  <div className="rounded-3xl border border-black/10 bg-app p-4 text-sm text-black/70">
+                  <div className="rounded-3xl border border-black/10 bg-app p-4 text-sm text-black/70 cursor-pointer">
                     No results yet. Enter a proposal and click <span className="font-semibold">Check</span>.
                   </div>
                 ) : !displayed.length ? (
