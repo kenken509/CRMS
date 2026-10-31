@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Capstone;
 use App\Models\Category;
+use App\Support\Audit;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -11,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
-use App\Support\Audit;
 
 class CapstoneController extends Controller
 {
@@ -144,19 +144,60 @@ class CapstoneController extends Controller
         ]);
     }
 
-    public function archive(Capstone $capstone)
+    public function archive(Request $request, Capstone $capstone)
     {
-        $capstone->delete();
+        DB::transaction(function () use ($request, $capstone) {
+            $capstoneDetails = [
+                'title' => $capstone->title,
+                'category_id' => $capstone->category_id,
+                'academic_year' => $capstone->academic_year,
+                'authors' => $capstone->authors,
+                'adviser' => $capstone->adviser,
+            ];
+
+            $capstone->delete();
+
+            Audit::log(
+                action: 'capstones.archived',
+                entity: $capstone,
+                old: $capstoneDetails,
+                new: null,
+                description: 'Archived capstone: ' . $capstone->title,
+                userId: $request->user()->id,
+                request: $request
+            );
+        });
 
         return response()->json([
             'message' => 'Capstone archived.',
         ]);
     }
 
-    public function restore($id)
+    public function restore(Request $request, $id)
     {
         $capstone = Capstone::onlyTrashed()->findOrFail($id);
-        $capstone->restore();
+
+        DB::transaction(function () use ($request, $capstone) {
+            $capstoneDetails = [
+                'title' => $capstone->title,
+                'category_id' => $capstone->category_id,
+                'academic_year' => $capstone->academic_year,
+                'authors' => $capstone->authors,
+                'adviser' => $capstone->adviser,
+            ];
+
+            $capstone->restore();
+
+            Audit::log(
+                action: 'capstones.restored',
+                entity: $capstone,
+                old: null,
+                new: $capstoneDetails,
+                description: 'Restored capstone: ' . $capstone->title,
+                userId: $request->user()->id,
+                request: $request
+            );
+        });
 
         return response()->json([
             'message' => 'Capstone restored.',
@@ -255,6 +296,18 @@ class CapstoneController extends Controller
         $newAuthors      = filled($data['authors'] ?? null) ? trim($data['authors']) : null;
         $newAdviser      = filled($data['adviser'] ?? null) ? trim($data['adviser']) : null;
 
+        // Capture the current business values before updating.
+        $oldValues = [
+            'title' => $capstone->title,
+            'category_id' => $capstone->category_id,
+            'abstract' => $capstone->abstract,
+            'academic_year' => $capstone->academic_year,
+            'authors' => $capstone->authors,
+            'adviser' => $capstone->adviser,
+            'statement_of_the_problem' => $capstone->statement_of_the_problem,
+            'objectives' => $capstone->objectives,
+        ];
+
         // detect if embedding-relevant fields changed
         $needsReembed =
             $capstone->title !== $newTitle ||
@@ -279,7 +332,7 @@ class CapstoneController extends Controller
 
         try {
             // 1) Update DB first (fast + user sees changes even if embedding fails)
-            DB::transaction(function () use ($capstone, $newTitle, $newCategoryId, $newAbstract, $newAcademicYear, $newAuthors, $newAdviser, $data, $needsReembed) {
+            DB::transaction(function () use ($request, $capstone, $newTitle, $newCategoryId, $newAbstract, $newAcademicYear, $newAuthors, $newAdviser, $data, $needsReembed, $oldValues) {
                 $capstone->update([
                     'title' => $newTitle,
                     'category_id' => $newCategoryId,
@@ -297,6 +350,39 @@ class CapstoneController extends Controller
                     'embedding_error'  => $needsReembed ? null : $capstone->embedding_error,
                     'embedded_at'      => $needsReembed ? null : $capstone->embedded_at,
                 ]);
+
+                $newValues = [
+                    'title' => $capstone->title,
+                    'category_id' => $capstone->category_id,
+                    'abstract' => $capstone->abstract,
+                    'academic_year' => $capstone->academic_year,
+                    'authors' => $capstone->authors,
+                    'adviser' => $capstone->adviser,
+                    'statement_of_the_problem' => $capstone->statement_of_the_problem,
+                    'objectives' => $capstone->objectives,
+                ];
+
+                $changedOldValues = [];
+                $changedNewValues = [];
+
+                foreach ($newValues as $field => $newValue) {
+                    if ($oldValues[$field] != $newValue) {
+                        $changedOldValues[$field] = $oldValues[$field];
+                        $changedNewValues[$field] = $newValue;
+                    }
+                }
+
+                if ($changedOldValues !== []) {
+                    Audit::log(
+                        action: 'capstones.updated',
+                        entity: $capstone,
+                        old: $changedOldValues,
+                        new: $changedNewValues,
+                        description: 'Updated capstone: ' . $capstone->title,
+                        userId: $request->user()->id,
+                        request: $request
+                    );
+                }
             });
 
             if (!$needsReembed) {
@@ -483,6 +569,25 @@ class CapstoneController extends Controller
 
                 $capstoneId = (int) $capstone->id;
 
+                // Record the successful database creation in the same transaction.
+                // This ensures a capstone cannot be saved without its audit entry.
+                Audit::log(
+                    action: 'capstones.created',
+                    entity: $capstone,
+                    old: null,
+                    new: [
+                        'title' => $capstone->title,
+                        'category_id' => $capstone->category_id,
+                        'academic_year' => $capstone->academic_year,
+                        'authors' => $capstone->authors,
+                        'adviser' => $capstone->adviser,
+                        'abstract' => $capstone->abstract,
+                    ],
+                    description: 'Created capstone: ' . $capstone->title,
+                    userId: $request->user()->id,
+                    request: $request
+                );
+
                 return $capstone;
             });
 
@@ -556,30 +661,10 @@ class CapstoneController extends Controller
                 'embedding_error'  => null,
             ])->save();
 
-            // audit trail
-            Audit::log(
-                action: 'capstones.created',
-                entity: $capstone,
-                old: null,
-                new: [
-                    'title' => $capstone->title,
-                    'category_id' => $capstone->category_id,
-                    'academic_year' => $capstone->academic_year,
-                    'authors' => $capstone->authors,
-                    'adviser' => $capstone->adviser,
-                    'abstract' => $capstone->abstract,
-                ],
-                description: 'Created capstone: ' . $capstone->title,
-                userId: $request->user()->id,
-                request: $request
-            );
-
             Log::info('Capstone created & indexed successfully.', [
                 'capstone_id' => $capstone->id,
                 'user_id'     => $request->user()->id,
             ]);
-
-
 
             return response()->json([
                 'message' => 'Capstone created.',
