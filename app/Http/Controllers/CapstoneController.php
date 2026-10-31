@@ -14,7 +14,8 @@ use Illuminate\Validation\Rule;
 
 class CapstoneController extends Controller
 {
-    public function index(){
+    public function index()
+    {
         return inertia('Admin/Capstones/Index', [
             'nav' => [
                 'section' => 'admin',
@@ -39,8 +40,8 @@ class CapstoneController extends Controller
             ->with(['category:id,name', 'creator:id,name'])
 
             // filters
-            ->when($categoryId, fn ($query) => $query->where('category_id', $categoryId))
-            ->when($academicYear !== '', fn ($query) => $query->where('academic_year', $academicYear))
+            ->when($categoryId, fn($query) => $query->where('category_id', $categoryId))
+            ->when($academicYear !== '', fn($query) => $query->where('academic_year', $academicYear))
 
             // search
             ->when($q !== '', function ($query) use ($q) {
@@ -60,7 +61,7 @@ class CapstoneController extends Controller
         return response()->json($capstones);
     }
 
-     public function create()
+    public function create()
     {
         $categories = Category::query()
             ->select('id', 'name')
@@ -76,7 +77,7 @@ class CapstoneController extends Controller
             ],
             'categories' => $categories,
         ]);
-    }    
+    }
 
     public function archived(Request $request)
     {
@@ -90,8 +91,8 @@ class CapstoneController extends Controller
             ->with(['category:id,name', 'creator:id,name'])
 
             // filters
-            ->when($categoryId, fn ($query) => $query->where('category_id', $categoryId))
-            ->when($academicYear !== '', fn ($query) => $query->where('academic_year', $academicYear))
+            ->when($categoryId, fn($query) => $query->where('category_id', $categoryId))
+            ->when($academicYear !== '', fn($query) => $query->where('academic_year', $academicYear))
 
             // search
             ->when($q !== '', function ($query) use ($q) {
@@ -375,7 +376,6 @@ class CapstoneController extends Controller
                 'message' => 'Capstone updated & re-indexed.',
                 'data' => $capstone->fresh(['category:id,name', 'creator:id,name']),
             ]);
-
         } catch (QueryException $e) {
             $mysqlCode = $e->errorInfo[1] ?? null;
             if ($mysqlCode === 1062) {
@@ -394,7 +394,6 @@ class CapstoneController extends Controller
             return response()->json([
                 'message' => 'Server error while updating capstone.',
             ], 500);
-
         } catch (\Throwable $e) {
             // Don’t rollback DB changes; instead mark embedding as failed for visibility
             try {
@@ -565,7 +564,6 @@ class CapstoneController extends Controller
                 'message' => 'Capstone created.',
                 'data'    => $capstone->fresh(['category:id,name', 'creator:id,name']),
             ], 201);
-
         } catch (QueryException $e) {
             // MySQL duplicate key (title unique)
             $mysqlCode = $e->errorInfo[1] ?? null;
@@ -585,7 +583,6 @@ class CapstoneController extends Controller
             return response()->json([
                 'message' => 'Server error while saving capstone.',
             ], 500);
-
         } catch (\Throwable $e) {
             // compensate if Qdrant already has point but something else failed afterwards
             if ($qdrantUpserted && $capstoneId) {
@@ -613,6 +610,5 @@ class CapstoneController extends Controller
                 'message' => 'Unable to create capstone right now. Please try again.',
             ], 503);
         }
-    }  
-
+    }
 }
